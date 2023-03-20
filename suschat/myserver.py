@@ -1,94 +1,99 @@
-from multiprocessing.util import log_to_stderr
-from operator import le
-from flask import Flask, request, render_template, copy_current_request_context
-import json
-import traceback
-from flask_socketio import SocketIO, emit
-import banana_dev as banana
-import re
-import logging
-import random
-import threading
-import os
-import time
-import asyncio
+R<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>ChatRoom</title>
+    </head>
+    <body>
+        <h3>Welcome to my chatroom</h3>
+        <div id="chat" style="width: 500px; height: 400px; border: 1px solid black; overflow-y: scroll;"></div>
+        <br />
+        <input type="text" id="inp_message" placeholder="Enter message" disabled />
+        <button type="submit" id="send" disabled>Send</button>
+        <p>Enter user name:</p>
+        <input type="text" id="username" placeholder="Enter an username" />
+        <button type="submit" id="connect">Connect</button>
+        <button type="submit" id="disconnect" disabled>Disconnect</button>
 
-# import gevent
-import aiohttp
-import os
-from multiprocessing import Process
+        <script src="../static/js/jquery-3.6.0.min.js"></script>
+        <script src="../static/js/socket.io.js"></script>
+        <script>
+            let chat = document.getElementById("chat");
+            let inp_message = document.getElementById("inp_message");
+            let send = document.getElementById("send");
+            let username = document.getElementById("username");
+            let btn_connect = document.getElementById("connect");
+            let btn_disconnect = document.getElementById("disconnect");
+            var user = username.value;
+            let socket = io({ autoConnect: false });
+            btn_connect.onclick = function () {
+                if (username.value != "") {
+                    socket.connect();
+                } else {
+                    alert("Please enter an username!");
+                    console.log("Please enter an username!");
+                }
+            };
 
-app = Flask(__name__)
-socket = SocketIO(app)
+            socket.on("connect", function () {
+                inp_message.disabled = false;
+                send.disabled = false;
+                username.disabled = true;
+                btn_connect.disabled = true;
+                user = username.value;
+                socket.emit("notify", user + " joined!");
+                btn_disconnect.disabled = false;
+                ptag = document.createElement("p");
+                ptag.innerHTML = "You joined!";
+                chat.appendChild(ptag);
+                console.log("Connected to server!");
+            });
+            socket.on("disconnect", function () {
+                ptag = document.createElement("p");
+                ptag.innerHTML = "You left!";
+                chat.appendChild(ptag);
+                console.log("Disconnected to server!");
+                inp_message.disabled = true;
+                send.disabled = true;
+                username.disabled = false;
+                btn_connect.disabled = false;
+                btn_disconnect.disabled = true;
+                socket.close();
+            });
+            socket.on("notify", function (status) {
+                ptag = document.createElement("p");
+                ptag.innerHTML = status;
+                chat.appendChild(ptag);
+            });
+            btn_disconnect.onclick = function () {
+                socket.emit("notify", user + " left!");
+                socket.close();
+            };
+            send.onclick = function () {
+                var data = {
+                    user: user, // The value of the "user" variable
+                    message: inp_message.value, // The value of the "value" property of the "inp_message" input element
+                };
+                socket.emit("data", data);
+                inp_message.value = "";
+            };
+            socket.on("returndata", function (data) {
+                mydata = JSON.parse(data);
+                console.log(mydata.message);
 
+                ptag = document.createElement("p");
+                ptag.innerHTML = mydata.message;
+                chat.appendChild(ptag);
+                socket.emit("bot_write_data");
+            });
+        
+            socket.on("returnchatbotdata", function (data) {
+                console.log(data);
 
-@app.route("/")
-def index():
-
-    return render_template("client.html")
-
-
-# 3600 characters
-model_key = "gptj"
-unavailable_names = list()
-chatbots = list()
-bot_names = list()
-avail_names = ["bot1", "bot2", "bot3", "bot4", "bot5", "bot6"]
-
-
-
-
-class Chatbot:
-    def __init__(self):
-        random_name = random.choice(avail_names)
-        avail_names.remove(random_name)
-        self.name = random_name
-        print("actual name:" + self.name)
-
-
-
-@socket.on("connect")
-def connect(parameter):
-    if not chatbots:
-        randomnum = random.randint(1, 6)
-
-        for n in range(randomnum):
-            chatbots.append(Chatbot())
-            print("bot " + str(n) + " created")
-    print(len(chatbots))
-    print("[CLIENT CONNECTED]:", request.sid)
-
-
-@socket.on("disconnect")
-def disconn():
-    print("[CLIENT DISCONNECTED]:", request.sid)
-
-
-@socket.on("notify")
-def notify(user):
-    emit("notify", user, broadcast=True, skip_sid=request.sid)
-
-
-@socket.on("data")
-def emitback(data):
-    print(data["message"])
-    json_data = json.dumps(data)
-    emit("returndata", json_data, broadcast=True)
-
-
-
-
-@socket.on("bot_write_data")
-def handle_bot_write_data():
-    print("hi")
-    chatbot_name = random.choice(chatbots).name
-    message = f"[{chatbot_name}]: Hello"
- 
-
-    emit("returnchatbotdata", message, broadcast=True)
-
-
-
-
-if __name__ == "__main__":
-    socket.run(app)
+                ptag = document.createElement("p");
+                ptag.innerHTML = data;
+                chat.appendChild(ptag);
+            });
+            
+        </script>
+    </body>
+</html>
